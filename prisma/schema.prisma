@@ -1,0 +1,44 @@
+// prisma/schema.prisma
+// Archivo de esquema Prisma para PostgreSQL / Supabase
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TicketStatus {
+  PENDIENTE
+  APROBADO
+  RECHAZADO
+  USADO
+}
+
+model Ticket {
+  id              String       @id @default(uuid())
+  token           String       @unique @default(uuid())
+  buyerName       String       @map("buyer_name")
+  buyerCedula     String       @map("buyer_cedula")
+  buyerPhone      String       @map("buyer_phone")
+  paymentRef      String       @map("payment_ref")
+  quantity        Int          @default(1)
+  totalAmountUSD  Float        @default(0.0) @map("total_amount_usd")
+  totalAmountBs   Float        @default(0.0) @map("total_amount_bs")
+  ticketType      String       @default("general") @map("ticket_type")
+  ticketTierName  String?      @map("ticket_tier_name")
+  status          TicketStatus @default(PENDIENTE)
+  rejectionReason String?      @map("rejection_reason")
+  usedAt          DateTime?    @map("used_at")
+  approvedAt      DateTime?    @map("approved_at")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  @@index([token])
+  @@index([status])
+  @@index([paymentRef])
+  @@index([buyerCedula])
+  @@map("tickets")
+}

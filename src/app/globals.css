@@ -1,26 +1,168 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --background: #14151b;
+  --foreground: #e9e1d4;
+  --win-bg: #22232c;
+  --win-border-light: #525464;
+  --win-border-dark: #0d0e12;
+  --titlebar-start: #1b3566;
+  --titlebar-end: #3b5998;
 }
 
 body {
-  background: var(--background);
+  background-color: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  min-height: 100vh;
+  font-family: "Courier New", Courier, monospace, monospace;
+  -webkit-font-smoothing: antialiased;
+  background-image: 
+    radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, #14151b, #0d0e12);
+  background-size: 20px 20px, 100% 100%;
+}
+
+/* ==========================================================================
+   VENTANAS Y ESTÉTICA WINDOWS 98 / Y2K RETRO VIBES
+   ========================================================================== */
+
+/* Ventana estilo Windows 98 / Y2K con biselado 3D */
+.win98-box {
+  background-color: #20212b;
+  border-top: 2px solid #5a5d72;
+  border-left: 2px solid #5a5d72;
+  border-bottom: 2px solid #0a0b0e;
+  border-right: 2px solid #0a0b0e;
+  box-shadow: 4px 4px 0px rgba(0, 0, 0, 0.4);
+}
+
+/* Barra de título clásica */
+.win98-titlebar {
+  background: linear-gradient(90deg, #1d3557 0%, #457b9d 100%);
+  color: #ffffff;
+  padding: 4px 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  user-select: none;
+}
+
+/* Botoncitos de la ventana [_] [□] [✕] */
+.win98-winbtn {
+  width: 16px;
+  height: 14px;
+  background-color: #2f313e;
+  color: #ffffff;
+  border-top: 1px solid #72758e;
+  border-left: 1px solid #72758e;
+  border-bottom: 1px solid #0a0b0e;
+  border-right: 1px solid #0a0b0e;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  line-height: 1;
+  cursor: pointer;
+}
+.win98-winbtn:active {
+  border-top: 1px solid #0a0b0e;
+  border-left: 1px solid #0a0b0e;
+  border-bottom: 1px solid #72758e;
+  border-right: 1px solid #72758e;
+}
+
+/* Botón 3D táctil Windows 98 / Y2K */
+.win98-btn {
+  background-color: #2b2d3a;
+  color: #e9e1d4;
+  border-top: 2px solid #6b6f8a;
+  border-left: 2px solid #6b6f8a;
+  border-bottom: 2px solid #0a0b0e;
+  border-right: 2px solid #0a0b0e;
+  font-family: "Courier New", Courier, monospace;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: background-color 0.1s ease;
+  box-shadow: 1px 1px 0px rgba(0, 0, 0, 0.3);
+}
+.win98-btn:hover {
+  background-color: #353848;
+}
+.win98-btn:active {
+  border-top: 2px solid #0a0b0e;
+  border-left: 2px solid #0a0b0e;
+  border-bottom: 2px solid #6b6f8a;
+  border-right: 2px solid #6b6f8a;
+  transform: translate(1px, 1px);
+}
+
+.win98-btn-primary {
+  background-color: #3b5998;
+  color: #ffffff;
+  border-top: 2px solid #728ec7;
+  border-left: 2px solid #728ec7;
+  border-bottom: 2px solid #142242;
+  border-right: 2px solid #142242;
+}
+.win98-btn-primary:hover {
+  background-color: #4a6bb2;
+}
+
+/* Área hundida / inset para campos de texto y contadores */
+.win98-sunken {
+  background-color: #121318;
+  border-top: 2px solid #0a0b0e;
+  border-left: 2px solid #0a0b0e;
+  border-bottom: 2px solid #4a4d61;
+  border-right: 2px solid #4a4d61;
+  color: #e9e1d4;
+}
+
+/* Barra de estado inferior tipo Windows 98 */
+.win98-statusbar {
+  border-top: 1px solid #0a0b0e;
+  border-bottom: 1px solid #4a4d61;
+  background-color: #191a22;
+  padding: 3px 8px;
+  font-size: 11px;
+  color: #8f92a8;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Troquelado retro de ticket */
+.ticket-notch-y2k {
+  position: relative;
+}
+.ticket-notch-y2k::before {
+  content: '';
+  position: absolute;
+  left: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: #14151b;
+  border-right: 2px solid #5a5d72;
+  z-index: 10;
+}
+.ticket-notch-y2k::after {
+  content: '';
+  position: absolute;
+  right: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: #14151b;
+  border-left: 2px solid #5a5d72;
+  z-index: 10;
 }
