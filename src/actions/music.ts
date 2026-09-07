@@ -1,9 +1,10 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { parseBuffer } from 'music-metadata';
 import { checkIsAdmin } from '@/lib/auth';
 import { checkDevPassword } from '@/lib/dev';
-import { listMusicTracks, uploadTrack, deleteTrack, MusicTrack } from '@/lib/music';
+import { listMusicTracks, uploadTrack, deleteTrack, MusicTrack, AUDIO_EXTS } from '@/lib/music';
 import { writeAuditLog } from '@/lib/audit';
 
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024; // 25 MB
@@ -32,29 +33,61 @@ export async function devUploadTrackAction(formData: FormData): Promise<{ succes
   const audio = formData.get('audio') as File | null;
   const cover = formData.get('cover') as File | null;
 
-  if (!title) return { success: false, error: 'Indica el título de la canción.' };
   if (!audio || !audio.size) return { success: false, error: 'Selecciona un archivo de audio.' };
   if (!audio.type.startsWith('audio/')) return { success: false, error: 'El archivo de audio no es válido.' };
   if (audio.size > MAX_AUDIO_BYTES) return { success: false, error: 'El audio supera 25 MB.' };
   if (cover && cover.size > MAX_COVER_BYTES) return { success: false, error: 'La portada supera 5 MB.' };
 
   const audioBuffer = await audio.arrayBuffer();
-  const coverBuffer = cover ? await cover.arrayBuffer() : null;
+
+  // --- Extracción automática de metadatos: título, artista y portada del MP3 ---
+  let finalTitle = title;
+  let finalArtist = artist;
+  let coverBuffer = cover ? await cover.arrayBuffer() : null;
+  let coverType = cover?.type;
+
+  const dot = audio.name.lastIndexOf('.');
+  const fileExt = dot >= 0 ? audio.name.slice(dot + 1).toLowerCase() : '';
+  const coverFallbackNeed = !coverBuffer;
+  const needMeta = !finalTitle || !finalArtist || coverFallbackNeed;
+
+  if (needMeta) {
+    try {
+      const md = await parseBuffer(Buffer.from(audioBuffer), { mimeType: audio.type, size: audio.size });
+      if (!finalTitle) finalTitle = (md.common.title || '').trim();
+      if (!finalArtist) finalArtist = (md.common.artist || '').trim();
+      if (coverFallbackNeed && md.common.picture && md.common.picture.length > 0) {
+        const pic = md.common.picture[0];
+        const data = pic.data as Uint8Array;
+        coverBuffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer;
+        coverType = pic.format || 'image/jpeg';
+      }
+    } catch {
+      // Sin metadatos legibles; seguimos con los valores manuales (o el nombre del archivo).
+    }
+  }
+
+  // Título por defecto: nombre del archivo sin extensión.
+  if (!finalTitle) {
+    const base = dot >= 0 ? audio.name.slice(0, dot) : audio.name;
+    finalTitle = base.replace(/[-_]+/g, ' ').trim() || 'Sin título';
+  }
 
   const { slug, error } = await uploadTrack({
-    title,
-    artist,
+    title: finalTitle,
+    artist: finalArtist,
     audio: audioBuffer,
     audioType: audio.type,
+    audioExt: AUDIO_EXTS.includes(fileExt) ? fileExt : fileExt || 'mp3',
     cover: coverBuffer,
-    coverType: cover?.type,
+    coverType,
   });
 
   if (error) return { success: false, error };
 
   writeAuditLog({
     action: 'MUSIC_UPLOAD',
-    details: JSON.stringify({ title, artist: artist || null, slug }),
+    details: JSON.stringify({ title: finalTitle, artist: finalArtist || null, slug }),
   });
 
   revalidatePath('/');

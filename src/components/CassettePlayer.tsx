@@ -79,13 +79,12 @@ export function CassettePlayer() {
     if (audioRef.current) audioRef.current.volume = volume;
   }, [volume]);
 
-  const artistLabel = useMemo(
-    () =>
-      tracks.length > 0
-        ? (tracks[currentIdx]?.title || '') + (tracks.length > 1 ? ` (${currentIdx + 1}/${tracks.length})` : '')
-        : '',
-    [tracks, currentIdx]
-  );
+  const artistLabel = useMemo(() => {
+    const t = tracks[currentIdx];
+    if (!t) return '';
+    const name = t.artist ? `${t.title} — ${t.artist}` : t.title;
+    return tracks.length > 1 ? `${name} (${currentIdx + 1}/${tracks.length})` : name;
+  }, [tracks, currentIdx]);
 
   if (loading) {
     return null;
@@ -175,8 +174,13 @@ export function CassettePlayer() {
                       <Disc3 className="w-4 h-4 text-[#8f92a8] m-auto mt-2.5" />
                     )}
                   </div>
-                  <span className={`text-xs truncate ${i === currentIdx ? 'text-white font-bold' : 'text-[#8f92a8]'}`}>
-                    {t.title}
+                  <span className="flex-1 min-w-0">
+                    <span className={`block text-xs truncate ${i === currentIdx ? 'text-white font-bold' : 'text-[#8f92a8]'}`}>
+                      {t.title}
+                    </span>
+                    {t.artist && (
+                      <span className="block text-[9px] text-[#6a6d82] truncate">{t.artist}</span>
+                    )}
                   </span>
                 </button>
               ))}

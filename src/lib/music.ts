@@ -13,8 +13,47 @@ export interface MusicTrack {
 }
 
 const BUCKET = 'music';
-const AUDIO_EXTS = ['mp3', 'm4a', 'ogg', 'wav'];
+const METADATA_FILE = 'metadata.json';
+export const AUDIO_EXTS = ['mp3', 'm4a', 'ogg', 'wav'];
 const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'webp'];
+
+type TrackFilesMap = Map<string, { audio?: string; cover?: string; size: number }>;
+
+interface TrackMeta {
+  title: string;
+  artist?: string;
+}
+
+type MetadataMap = Record<string, TrackMeta>;
+
+function publicUrl(name: string): string {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  return `${url}/storage/v1/object/public/${BUCKET}/${name}`;
+}
+
+// Lee metadata.json del bucket (si existe). No lanza: si falla/404 devuelve {}.
+async function readTrackMetadata(): Promise<MetadataMap> {
+  try {
+    const res = await fetch(publicUrl(METADATA_FILE), { cache: 'no-store' });
+    if (!res.ok) return {};
+    const data = await res.json();
+    return data && typeof data === 'object' ? (data as MetadataMap) : {};
+  } catch {
+    return {};
+  }
+}
+
+async function writeTrackMetadata(meta: MetadataMap): Promise<void> {
+  if (!supabaseAdmin) return;
+  const body = new Blob([JSON.stringify(meta, null, 2)], { type: 'application/json' });
+  await supabaseAdmin.storage
+    .from(BUCKET)
+    .upload(METADATA_FILE, body, { contentType: 'application/json', upsert: true, cacheControl: '3600' });
+}
+
+function fallbackTitle(base: string): string {
+  return base.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 export function slugifyTitle(title: string): string {
   return title
@@ -25,11 +64,6 @@ export function slugifyTitle(title: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 60);
-}
-
-function publicUrl(name: string): string {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  return `${url}/storage/v1/object/public/${BUCKET}/${name}`;
 }
 
 export async function listMusicTracks(): Promise<MusicTrack[]> {
@@ -45,7 +79,7 @@ export async function listMusicTracks(): Promise<MusicTrack[]> {
     return [];
   }
 
-  const byBase = new Map<string, { audio?: string; cover?: string; size: number }>();
+  const byBase: TrackFilesMap = new Map();
 
   for (const file of data) {
     const dot = file.name.lastIndexOf('.');
@@ -63,11 +97,14 @@ export async function listMusicTracks(): Promise<MusicTrack[]> {
     byBase.set(base, entry);
   }
 
+  const meta = await readTrackMetadata();
+
   return Array.from(byBase.entries())
     .filter(([, entry]) => entry.audio)
     .map(([base, entry]) => ({
       id: base,
-      title: base.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+      title: meta[base]?.title || fallbackTitle(base),
+      ...(meta[base]?.artist ? { artist: meta[base]!.artist } : {}),
       audioUrl: publicUrl(entry.audio!),
       coverUrl: entry.cover ? publicUrl(entry.cover) : null,
       size: entry.size,
@@ -79,6 +116,7 @@ export interface UploadTrackInput {
   artist?: string;
   audio: ArrayBuffer;
   audioType: string;
+  audioExt?: string;
   cover?: ArrayBuffer | null;
   coverType?: string;
 }
@@ -90,7 +128,8 @@ export async function uploadTrack(input: UploadTrackInput): Promise<{ slug: stri
   const slug = slugifyTitle(input.title);
   if (!slug) return { slug: '', error: 'Título inválido para generar el nombre del archivo.' };
 
-  const audioName = `${slug}.mp3`;
+  const audioExt = (input.audioExt || 'mp3').replace(/[^a-z0-9]/g, '') || 'mp3';
+  const audioName = `${slug}.${audioExt}`;
   const { error: audioErr } = await supabaseAdmin.storage.from(BUCKET).upload(audioName, input.audio, {
     contentType: input.audioType || 'audio/mpeg',
     upsert: true,
@@ -106,6 +145,14 @@ export async function uploadTrack(input: UploadTrackInput): Promise<{ slug: stri
     });
     if (coverErr) console.warn('Error subiendo portada:', coverErr.message);
   }
+
+  // Guarda título/artista reales para que el reproductor los muestre.
+  const meta = await readTrackMetadata();
+  meta[slug] = {
+    title: input.title,
+    ...(input.artist ? { artist: input.artist } : {}),
+  };
+  await writeTrackMetadata(meta);
 
   return { slug };
 }
@@ -128,6 +175,13 @@ export async function deleteTrack(slug: string): Promise<{ success: boolean; err
     const paths = toDelete.map((f) => f.name);
     const { error: delErr } = await supabaseAdmin.storage.from(BUCKET).remove(paths);
     if (delErr) return { success: false, error: `Error borrando: ${delErr.message}` };
+  }
+
+  // Limpia la entrada del metadata.json.
+  const meta = await readTrackMetadata();
+  if (meta[slug]) {
+    delete meta[slug];
+    await writeTrackMetadata(meta);
   }
 
   if (error) return { success: false, error: error.message };

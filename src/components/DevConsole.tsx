@@ -593,10 +593,6 @@ function MusicAdmin({ devPassword }: { devPassword: string }) {
   }, []);
 
   const handleUpload = () => {
-    if (!title.trim()) {
-      setMsg({ type: 'err', text: 'Indica el título de la canción.' });
-      return;
-    }
     if (!audioFile) {
       setMsg({ type: 'err', text: 'Selecciona el archivo de audio.' });
       return;
@@ -706,9 +702,12 @@ function MusicAdmin({ devPassword }: { devPassword: string }) {
 
         {/* Formulario de subida */}
         <div className="win98-sunken p-3 space-y-2.5">
+          <div className="p-2 bg-[#181922] border border-[#2e3142] text-[10px] text-[#8f92a8]">
+            Los metadatos del archivo (título, artista y portada) se extraen automáticamente — solo llénalos si quieres corregirlos.
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             <div className="space-y-1">
-              <label className="text-[10px] text-[#8f92a8] uppercase block">Título *</label>
+              <label className="text-[10px] text-[#8f92a8] uppercase block">Título (auto del MP3)</label>
               <input
                 type="text"
                 value={title}
@@ -718,7 +717,7 @@ function MusicAdmin({ devPassword }: { devPassword: string }) {
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] text-[#8f92a8] uppercase block">Artista (opcional)</label>
+              <label className="text-[10px] text-[#8f92a8] uppercase block">Artista (auto del MP3)</label>
               <input
                 type="text"
                 value={artist}
@@ -730,7 +729,7 @@ function MusicAdmin({ devPassword }: { devPassword: string }) {
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] text-[#8f92a8] uppercase block">Archivo de audio (MP3, máx 25 MB) *</label>
+            <label className="text-[10px] text-[#8f92a8] uppercase block">Archivo de audio (MP3, M4A, OGG o WAV, máx 25 MB) *</label>
             <input
               type="file"
               accept="audio/*"
@@ -740,7 +739,7 @@ function MusicAdmin({ devPassword }: { devPassword: string }) {
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] text-[#8f92a8] uppercase block">Portada / foto de la canción (JPG o PNG, máx 5 MB)</label>
+            <label className="text-[10px] text-[#8f92a8] uppercase block">Portada (opcional; si el MP3 trae una, se usa esa)</label>
             <input
               type="file"
               accept="image/jpeg,image/png,image/webp"
