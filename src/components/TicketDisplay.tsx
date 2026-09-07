@@ -37,6 +37,10 @@ export function TicketDisplay({ ticket, event, appUrl }: TicketDisplayProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const ticketRef = useRef<HTMLDivElement>(null);
+  // Ancho fijo del boleto: igual en todos los dispositivos para que el PNG/imagen salga idéntico.
+  const PRINT_W = 544;
+  const [view, setView] = useState({ scale: 1, height: 0 });
+  const scaleWrapRef = useRef<HTMLDivElement>(null);
 
   const validationUrl = `${appUrl}/validar/${ticket.token}`;
 
@@ -52,6 +56,26 @@ export function TicketDisplay({ ticket, event, appUrl }: TicketDisplayProps) {
       } catch {}
     }
   }, [ticket.status]);
+
+  useEffect(() => {
+    const measure = () => {
+      const wrap = scaleWrapRef.current;
+      const node = ticketRef.current;
+      if (!wrap || !node) return;
+      const scale = Math.min(1, wrap.clientWidth / PRINT_W);
+      setView({ scale, height: node.offsetHeight * scale });
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(measure);
+    if (scaleWrapRef.current) ro.observe(scaleWrapRef.current);
+    if (ticketRef.current) ro.observe(ticketRef.current);
+    window.addEventListener('resize', measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, []);
 
   const handleCopyLink = () => {
     if (typeof window !== 'undefined') {
@@ -95,7 +119,7 @@ export function TicketDisplay({ ticket, event, appUrl }: TicketDisplayProps) {
   const whatsappUrl = `https://wa.me/${event.contact.whatsapp}?text=${whatsappMessage}`;
 
   return (
-    <div className="max-w-xl mx-auto px-4 py-8">
+    <div className="max-w-xl mx-auto px-4 py-8 pb-44 sm:pb-36">
       {/* Botones superiores */}
       <div className="mb-4 flex items-center justify-between">
         <Link
@@ -116,9 +140,15 @@ export function TicketDisplay({ ticket, event, appUrl }: TicketDisplayProps) {
         </button>
       </div>
 
-      {/* VENTANA ESTILO WINDOWS 98 / Y2K */}
-      <motion.div
-        ref={ticketRef}
+      {/* VENTANA ESTILO WINDOWS 98 / Y2K — layout fijo (544px).
+          En móvil se escala visualmente para caber, pero el PNG (html-to-image usa
+          clientWidth) siempre sale al tamaño real, idéntico en PC y teléfono. */}
+      <div className="overflow-hidden" ref={scaleWrapRef}>
+        <div style={{ width: PRINT_W, marginInline: 'auto' }}>
+          <div style={{ height: view.height }}>
+            <div style={{ width: PRINT_W, transform: `scale(${view.scale})`, transformOrigin: 'top center' }}>
+              <motion.div
+                ref={ticketRef}
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
@@ -138,7 +168,7 @@ export function TicketDisplay({ ticket, event, appUrl }: TicketDisplayProps) {
         </div>
 
         {/* Cuerpo de la Ventana */}
-        <div className="p-5 sm:p-7 space-y-5 bg-[#1f2029] font-mono">
+        <div className="p-6 space-y-5 bg-[#1f2029] font-mono">
           {/* Cabecera del evento */}
           <div className="border-b border-[#363847] pb-4 space-y-1">
             <span className="text-xs text-[#8f92a8] uppercase block">
@@ -295,55 +325,6 @@ export function TicketDisplay({ ticket, event, appUrl }: TicketDisplayProps) {
               </span>
             </div>
           </div>
-
-          {/* BOTONES DE ACCIÓN */}
-          <div className="space-y-2 pt-1">
-            {ticket.status === 'APROBADO' && (
-              <button
-                type="button"
-                onClick={handleDownload}
-                disabled={isDownloading}
-                className="win98-btn win98-btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                {isDownloading ? (
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Download className="w-3.5 h-3.5" />
-                )}
-                <span>Guardar Boleto Digital (PNG)</span>
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={handleCopyLink}
-              className="win98-btn w-full flex items-center justify-center gap-2"
-            >
-              {copiedLink ? (
-                <>
-                  <Check className="w-3.5 h-3.5 text-[#6b8e23]" />
-                  <span>¡ENLACE COPIADO AL PORTAPAPELES!</span>
-                </>
-              ) : (
-                <>
-                  <Share2 className="w-3.5 h-3.5 text-[#8f92a8]" />
-                  <span>Copiar Enlace Permanente del Boleto</span>
-                </>
-              )}
-            </button>
-
-            {event.contact.whatsapp && (
-            <a
-              href={whatsappUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="win98-btn win98-btn-primary w-full flex items-center justify-center gap-2"
-            >
-              <Phone className="w-3.5 h-3.5" />
-              <span>Contactar Soporte de Taquilla</span>
-            </a>
-          )}
-          </div>
         </div>
 
         {/* Barra de estado inferior */}
@@ -352,7 +333,60 @@ export function TicketDisplay({ ticket, event, appUrl }: TicketDisplayProps) {
           <span>Admite: {ticket.quantity} pers.</span>
           <span>Seguridad: Verificado</span>
         </div>
-      </motion.div>
+              </motion.div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* BOTONES DE ACCIÓN (fuera del boleto: no se escalan en móvil ni salen en el PNG) */}
+      <div className="space-y-2 pt-2">
+        {ticket.status === 'APROBADO' && (
+          <button
+            type="button"
+            onClick={handleDownload}
+            disabled={isDownloading}
+            className="win98-btn win98-btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            {isDownloading ? (
+              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Download className="w-3.5 h-3.5" />
+            )}
+            <span>Guardar Boleto Digital (PNG)</span>
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={handleCopyLink}
+          className="win98-btn w-full flex items-center justify-center gap-2"
+        >
+          {copiedLink ? (
+            <>
+              <Check className="w-3.5 h-3.5 text-[#6b8e23]" />
+              <span>¡ENLACE COPIADO AL PORTAPAPELES!</span>
+            </>
+          ) : (
+            <>
+              <Share2 className="w-3.5 h-3.5 text-[#8f92a8]" />
+              <span>Copiar Enlace Permanente del Boleto</span>
+            </>
+          )}
+        </button>
+
+        {event.contact.whatsapp && (
+          <a
+            href={whatsappUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="win98-btn win98-btn-primary w-full flex items-center justify-center gap-2"
+          >
+            <Phone className="w-3.5 h-3.5" />
+            <span>Contactar Soporte de Taquilla</span>
+          </a>
+        )}
+      </div>
     </div>
   );
 }

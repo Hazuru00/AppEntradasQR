@@ -20,7 +20,10 @@ export function CassettePlayer() {
   const [loading, setLoading] = useState(true);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [playing, setPlaying] = useState(false);
-  const [volume, setVolume] = useState(0.8);
+  const [volume, setVolume] = useState(0.5);
+  const [progress, setProgress] = useState(0);
+  const [elapsed, setElapsed] = useState(0);
+  const [duration, setDuration] = useState(0);
   const [listOpen, setListOpen] = useState(false);
   const autoplayAttemptedRef = useRef(false);
 
@@ -94,6 +97,13 @@ export function CassettePlayer() {
     return null;
   }
 
+  const formatTime = (s: number) => {
+    if (!isFinite(s) || s <= 0) return '0:00';
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return `${m}:${sec.toString().padStart(2, '0')}`;
+  };
+
   const togglePlay = () => {
     const audio = audioRef.current;
     if (!audio || !current) return;
@@ -110,6 +120,9 @@ export function CassettePlayer() {
   const playAt = (i: number) => {
     const idx = (i + tracks.length) % tracks.length;
     setCurrentIdx(idx);
+    setProgress(0);
+    setElapsed(0);
+    setDuration(0);
     const audio = audioRef.current;
     if (audio) {
       audio.load();
@@ -124,6 +137,8 @@ export function CassettePlayer() {
     } else {
       setPlaying(false);
       if (audioRef.current) audioRef.current.currentTime = 0;
+      setProgress(0);
+      setElapsed(0);
     }
   };
 
@@ -137,10 +152,24 @@ export function CassettePlayer() {
         onEnded={handleEnded}
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
+        onLoadedMetadata={(e) => {
+          const d = e.currentTarget.duration || 0;
+          setDuration(isFinite(d) ? d : 0);
+          setElapsed(0);
+          setProgress(0);
+        }}
+        onTimeUpdate={(e) => {
+          const t = e.currentTarget.currentTime;
+          const d = e.currentTarget.duration || 0;
+          if (isFinite(d) && d > 0) {
+            setElapsed(t);
+            setProgress(Math.min(1, t / d));
+          }
+        }}
         preload="auto"
       />
 
-      <div className="fixed bottom-3 left-3 right-3 sm:left-auto sm:right-4 z-40">
+      <div className="fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-2 right-2 sm:left-auto sm:right-4 z-40">
         <div className="win98-box overflow-hidden shadow-2xl sm:w-[380px] ml-auto">
           <div className="win98-titlebar">
             <div className="flex items-center gap-1.5">
@@ -196,11 +225,19 @@ export function CassettePlayer() {
                 )}
               </div>
 
-              <div className="flex-1 min-w-0 space-y-1">
+              <div className="flex-1 min-w-0 space-y-1.5">
                 <span className="text-[10px] text-[#8f92a8] uppercase block">Sonando ahora</span>
                 <span className="block text-xs font-bold text-white truncate">{artistLabel}</span>
-                <div className="w-full h-1.5 win98-sunken">
-                  <div className="h-full bg-[#457b9d]" style={{ width: '35%' }} />
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-1.5 win98-sunken">
+                    <div
+                      className="h-full bg-[#457b9d] transition-[width] duration-300"
+                      style={{ width: `${Math.round(progress * 100)}%` }}
+                    />
+                  </div>
+                  <span className="text-[9px] text-[#6a6d82] tabular-nums whitespace-nowrap">
+                    {formatTime(elapsed)}/{formatTime(duration)}
+                  </span>
                 </div>
               </div>
             </div>
@@ -210,7 +247,7 @@ export function CassettePlayer() {
             <button
               type="button"
               onClick={() => playAt(currentIdx - 1)}
-              className="win98-btn py-1 px-2 text-xs"
+              className="win98-btn py-1.5 px-2.5 sm:py-1 sm:px-2 text-xs"
               title="Anterior"
             >
               <SkipBack className="w-4 h-4" />
@@ -218,7 +255,7 @@ export function CassettePlayer() {
             <button
               type="button"
               onClick={togglePlay}
-              className="win98-btn win98-btn-primary py-1 px-3 text-xs flex items-center gap-1"
+              className="win98-btn win98-btn-primary py-1.5 px-3.5 sm:py-1 sm:px-3 text-xs flex items-center gap-1"
               title={playing ? 'Pausar' : 'Reproducir'}
             >
               {playing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
@@ -226,7 +263,7 @@ export function CassettePlayer() {
             <button
               type="button"
               onClick={() => playAt(currentIdx + 1)}
-              className="win98-btn py-1 px-2 text-xs"
+              className="win98-btn py-1.5 px-2.5 sm:py-1 sm:px-2 text-xs"
               title="Siguiente"
             >
               <SkipForward className="w-4 h-4" />
@@ -237,10 +274,10 @@ export function CassettePlayer() {
             <button
               type="button"
               onClick={() => {
-                const next = volume > 0 ? 0 : 0.8;
+                const next = volume > 0 ? 0 : 0.5;
                 setVolume(next);
               }}
-              className="win98-btn py-1 px-2 text-xs"
+              className="win98-btn py-1.5 px-2.5 sm:py-1 sm:px-2 text-xs"
               title="Silencio"
             >
               {volume > 0 ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
