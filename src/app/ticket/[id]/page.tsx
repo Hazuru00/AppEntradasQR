@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getTicketById } from '@/lib/db';
 import { getActiveEvent } from '@/config/event';
+import { getAppUrl } from '@/lib/appUrl';
 import { TicketDisplay } from '@/components/TicketDisplay';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
@@ -18,7 +19,7 @@ export default async function TicketPage({ params }: TicketPageProps) {
   const { id } = await params;
   const ticket = await getTicketById(id);
   const event = getActiveEvent();
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  const appUrl = await getAppUrl();
 
   if (!ticket) {
     return (

@@ -15,7 +15,9 @@ export type AuditAction =
   | 'APPROVE'
   | 'REVERT_USED'
   | 'DELETE_TICKET'
-  | 'CLEAR_TICKETS';
+  | 'CLEAR_TICKETS'
+  | 'MUSIC_UPLOAD'
+  | 'MUSIC_DELETE';
 
 function ensureLogFile(): void {
   const dir = path.dirname(LOG_FILE);

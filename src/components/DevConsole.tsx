@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   Monitor,
@@ -15,6 +15,9 @@ import {
   Loader2,
   ChevronDown,
   ChevronUp,
+  Music2,
+  Upload,
+  ListX,
 } from 'lucide-react';
 import { Ticket, TicketStatus } from '@/lib/types';
 import { EventConfig } from '@/config/event';
@@ -26,6 +29,12 @@ import {
   devDeleteTicketAction,
   devClearTicketsAction,
 } from '@/actions/dev';
+import {
+  devUploadTrackAction,
+  devDeleteTrackAction,
+  getMusicPlaylistAction,
+} from '@/actions/music';
+import { MusicTrack } from '@/lib/music';
 import { formatUSD, formatBs, formatDateTime } from '@/lib/utils';
 
 interface DevConsoleProps {
@@ -366,6 +375,11 @@ export function DevConsole({ tickets, event }: DevConsoleProps) {
             </div>
           </div>
 
+          {/* REPRODUCTOR / PLAYLIST (MÚSICA DEL EVENTO) */}
+          <div className="border-t border-[#363847] pt-4">
+            <MusicAdmin devPassword={devPassword} />
+          </div>
+
           <div className="text-[11px] text-[#8f92a8] border-t border-[#363847] pt-3 space-y-0.5">
             <span className="text-[#b5a642] block">Opciones de estado para des-rechazar:</span>
             <span className="block">• RECHAZADO → PENDIENTE: vuelve a la cola de verificación</span>
@@ -552,6 +566,235 @@ function Field({ label, value, onChange }: { label: string; value: string; onCha
         onChange={(e) => onChange(e.target.value)}
         className="win98-sunken w-full p-2 text-xs text-white focus:outline-none"
       />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Sección "Músika" de la consola dev: sube, lista y borra la playlist del evento.
+// ---------------------------------------------------------------------------
+
+function MusicAdmin({ devPassword }: { devPassword: string }) {
+  const [tracks, setTracks] = useState<MusicTrack[] | null>(null);
+  const [title, setTitle] = useState('');
+  const [artist, setArtist] = useState('');
+  const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+
+  const refresh = () => {
+    getMusicPlaylistAction().then((res) => setTracks(res.tracks));
+  };
+
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  const handleUpload = () => {
+    if (!title.trim()) {
+      setMsg({ type: 'err', text: 'Indica el título de la canción.' });
+      return;
+    }
+    if (!audioFile) {
+      setMsg({ type: 'err', text: 'Selecciona el archivo de audio.' });
+      return;
+    }
+
+    setBusy(true);
+    setMsg(null);
+    const fd = new FormData();
+    fd.set('devPassword', devPassword);
+    fd.set('title', title.trim());
+    fd.set('artist', artist.trim());
+    fd.set('audio', audioFile);
+    if (coverFile) fd.set('cover', coverFile);
+
+    devUploadTrackAction(fd).then((res) => {
+      setBusy(false);
+      setMsg(res.success ? { type: 'ok', text: 'Canción subida. Ya suena en la web.' } : { type: 'err', text: res.error || 'Error al subir.' });
+      if (res.success) {
+        setTitle('');
+        setArtist('');
+        setAudioFile(null);
+        setCoverFile(null);
+        refresh();
+      }
+    });
+  };
+
+  const handleDelete = (slug: string) => {
+    setBusy(true);
+    setMsg(null);
+    devDeleteTrackAction(slug, devPassword).then((res) => {
+      setBusy(false);
+      setConfirmDelete(null);
+      setMsg(res.success ? { type: 'ok', text: 'Canción borrada del bucket.' } : { type: 'err', text: res.error || 'Error al borrar.' });
+      refresh();
+    });
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Music2 className="w-4 h-4 text-[#b5a642]" />
+          <h3 className="text-sm font-bold text-white uppercase">Músika del Evento (Playlist)</h3>
+        </div>
+        <span className="text-[10px] text-[#8f92a8]">Bucket Supabase: music</span>
+      </div>
+
+      {msg && (
+        <div
+          className={`p-2.5 text-xs border flex items-center gap-2 ${
+            msg.type === 'ok'
+              ? 'bg-[#122416] border-[#6b8e23] text-[#86b53a]'
+              : 'bg-[#3a1818] border-[#8c2727] text-[#e05252]'
+          }`}
+        >
+          <AlertTriangle className="w-4 h-4 shrink-0" />
+          <span>{msg.text}</span>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Lista de canciones */}
+        <div className="win98-sunken overflow-hidden">
+          <div className="p-2 bg-[#181922] text-[10px] text-[#8f92a8] uppercase">Canciones subidas</div>
+          <div className="max-h-64 overflow-y-auto divide-y divide-[#262836]">
+            {tracks === null ? (
+              <div className="p-4 text-center text-xs text-[#8f92a8]">
+                <Loader2 className="w-4 h-4 animate-spin mx-auto mb-1" />
+                [ Cargando... ]
+              </div>
+            ) : tracks.length === 0 ? (
+              <div className="p-4 text-center text-xs text-[#8f92a8]">
+                [ No hay canciones aún — súbelas a la derecha ]
+              </div>
+            ) : (
+              tracks.map((t) => (
+                <div key={t.id} className="p-2.5 flex items-center gap-2.5">
+                  <div className="w-10 h-10 bg-[#121318] border border-[#2e3142] shrink-0 overflow-hidden">
+                    {t.coverUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={t.coverUrl} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <Music2 className="w-4 h-4 text-[#8f92a8] m-auto mt-3" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="block text-xs font-bold text-white truncate">{t.title}</span>
+                    <span className="block text-[10px] text-[#8f92a8]">
+                      {t.id}.mp3 · {(t.size / 1048576).toFixed(1)} MB
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => setConfirmDelete(t.id)}
+                    className="win98-btn py-0.5 px-2 text-[10px] bg-[#8c2727] text-white border-t-[#c24646] disabled:opacity-50"
+                    title="Borrar del bucket"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Formulario de subida */}
+        <div className="win98-sunken p-3 space-y-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div className="space-y-1">
+              <label className="text-[10px] text-[#8f92a8] uppercase block">Título *</label>
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Ej: La Copa de la Vida"
+                className="win98-sunken w-full p-2 text-xs text-white focus:outline-none"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] text-[#8f92a8] uppercase block">Artista (opcional)</label>
+              <input
+                type="text"
+                value={artist}
+                onChange={(e) => setArtist(e.target.value)}
+                placeholder="Ej: Ricky Martin"
+                className="win98-sunken w-full p-2 text-xs text-white focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] text-[#8f92a8] uppercase block">Archivo de audio (MP3, máx 25 MB) *</label>
+            <input
+              type="file"
+              accept="audio/*"
+              onChange={(e) => setAudioFile(e.target.files?.[0] || null)}
+              className="text-xs text-white file:mr-3 file:py-1 file:px-3 file:rounded-none file:border file:border-[#5a5d72] file:bg-[#181922] file:text-white file:text-xs"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] text-[#8f92a8] uppercase block">Portada / foto de la canción (JPG o PNG, máx 5 MB)</label>
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={(e) => setCoverFile(e.target.files?.[0] || null)}
+              className="text-xs text-white file:mr-3 file:py-1 file:px-3 file:rounded-none file:border file:border-[#5a5d72] file:bg-[#181922] file:text-white file:text-xs"
+            />
+          </div>
+
+          <div className="flex items-center justify-end">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={handleUpload}
+              className="win98-btn win98-btn-primary py-1.5 px-3 text-xs flex items-center gap-1.5 disabled:opacity-50"
+            >
+              {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+              Subir canción (reemplaza si existe)
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {confirmDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
+          <div className="win98-box w-full max-w-sm overflow-hidden shadow-2xl">
+            <div className="win98-titlebar">
+              <span className="text-xs">DELETE.EXE - [Borrar canción]</span>
+              <button type="button" onClick={() => setConfirmDelete(null)} className="win98-winbtn">✕</button>
+            </div>
+            <div className="p-5 bg-[#1f2029] space-y-4">
+              <h3 className="text-sm font-bold text-white uppercase flex items-center gap-2">
+                <ListX className="w-4 h-4 text-[#e05252]" />
+                ¿Borrar esta canción del bucket?
+              </h3>
+              <p className="text-xs text-[#8f92a8]">
+                Se eliminará <strong className="text-white">{confirmDelete}.mp3</strong> y su portada de Supabase Storage. Dejará de sonar en la web.
+              </p>
+              <div className="flex justify-end gap-2">
+                <button type="button" onClick={() => setConfirmDelete(null)} className="win98-btn py-1.5 px-3 text-xs">
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => handleDelete(confirmDelete)}
+                  className="win98-btn py-1.5 px-3 text-xs bg-[#8c2727] text-white border-t-[#c24646] disabled:opacity-50"
+                >
+                  {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Borrar definitivamente'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

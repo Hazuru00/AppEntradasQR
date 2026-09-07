@@ -43,6 +43,13 @@ export function TicketPurchaseForm({ event }: TicketPurchaseFormProps) {
   const totalUSD = unitUSD * quantity;
   const totalBs = unitBs * quantity;
 
+  const pagoMovilAvailable = Boolean(
+    event.pagoMovil.bank &&
+      event.pagoMovil.phone &&
+      event.pagoMovil.idNumber &&
+      event.pagoMovil.accountHolder
+  );
+
   const handleCopy = (text: string, fieldName: string) => {
     navigator.clipboard.writeText(text);
     setCopiedField(fieldName);
@@ -166,6 +173,7 @@ export function TicketPurchaseForm({ event }: TicketPurchaseFormProps) {
           </div>
 
           {/* DATOS DE PAGO MÓVIL EN PANEL HUNDIDO */}
+          {pagoMovilAvailable && (
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-sm font-bold font-mono text-white block uppercase">
@@ -242,11 +250,12 @@ export function TicketPurchaseForm({ event }: TicketPurchaseFormProps) {
               </div>
             </div>
           </div>
+          )}
 
           {/* FORMULARIO: DATOS DEL TITULAR */}
           <form onSubmit={handleSubmit} className="space-y-4 pt-2">
             <label className="text-sm font-bold font-mono text-white block uppercase">
-              3. Registra tu Referencia:
+              {pagoMovilAvailable ? '3. Registra tu Referencia:' : '2. Registra tu Referencia:'}
             </label>
 
             {errorMessage && (

@@ -1,6 +1,17 @@
 // src/config/event.ts
-// CONFIGURACIÓN MAESTRA DEL EVENTO (Estructura tipo JSON)
-// Modifica fácilmente los valores aquí para adaptar la app a cualquier evento
+// CONFIGURACIÓN MAESTRA DEL EVENTO
+// Los valores de marca (nombre, subtítulo) se pueden sobreescribir con env vars:
+//   NEXT_PUBLIC_EVENT_NAME / NEXT_PUBLIC_EVENT_SUBTITLE
+// Si no se definen, se usan los valores por defecto de abajo.
+
+const envName = process.env.NEXT_PUBLIC_EVENT_NAME?.trim();
+const envSubtitle = process.env.NEXT_PUBLIC_EVENT_SUBTITLE?.trim();
+const envBank = process.env.NEXT_PUBLIC_PAGO_MOVIL_BANCO?.trim();
+const envPhone = process.env.NEXT_PUBLIC_PAGO_MOVIL_TELEFONO?.trim();
+const envCedula = process.env.NEXT_PUBLIC_PAGO_MOVIL_CEDULA?.trim();
+const envHolder = process.env.NEXT_PUBLIC_PAGO_MOVIL_TITULAR?.trim();
+const envWhatsapp = process.env.NEXT_PUBLIC_WHATSAPP?.trim();
+const envInstagram = process.env.NEXT_PUBLIC_INSTAGRAM?.trim();
 
 export interface TicketTier {
   id: string;
@@ -47,14 +58,14 @@ export interface EventConfig {
   // Enlaces de contacto y redes
   contact: {
     whatsapp: string; // ej: 584121234567
-    instagram: string;
+    instagram?: string; // opcional: si no se define, no se muestra
   };
 }
 
 export const EVENT_DATA: EventConfig = {
   id: "y2k-party-2000s",
-  title: "Y2K PARTY",
-  subtitle: "Nostalgia 2000s • Pop, Hip-Hop & Reggaetón Clásico",
+  title: envName || "2000s Party",
+  subtitle: envSubtitle || "La fiesta con lo mejor de los 2000s • Pop, Hip-Hop, Rock y Reggaetón",
   date: "Viernes 11 de Septiembre, 2026",
   time: "7:00 PM a 12:00 AM",
   venue: "Salón Parroquial de la Parroquia San Juan Evangelista",
@@ -89,15 +100,16 @@ export const EVENT_DATA: EventConfig = {
   ],
 
   pagoMovil: {
-    bank: "Banesco (0134)",
-    phone: "0412-5551234",
-    idNumber: "V-26888999",
-    accountHolder: "Y2K Eventos C.A."
+    bank: envBank || "",
+    phone: envPhone || "",
+    idNumber: envCedula || "",
+    accountHolder: envHolder || ""
   },
 
+  // Enlaces de contacto y redes
   contact: {
-    whatsapp: "584125551234",
-    instagram: "@y2kparty.ve"
+    whatsapp: envWhatsapp || "", // ej: 584121234567
+    instagram: envInstagram || undefined // opcional: si no se define, no se muestra
   }
 };
 

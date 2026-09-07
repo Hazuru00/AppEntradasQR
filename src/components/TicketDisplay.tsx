@@ -332,6 +332,7 @@ export function TicketDisplay({ ticket, event, appUrl }: TicketDisplayProps) {
               )}
             </button>
 
+            {event.contact.whatsapp && (
             <a
               href={whatsappUrl}
               target="_blank"
@@ -341,6 +342,7 @@ export function TicketDisplay({ ticket, event, appUrl }: TicketDisplayProps) {
               <Phone className="w-3.5 h-3.5" />
               <span>Contactar Soporte de Taquilla</span>
             </a>
+          )}
           </div>
         </div>
 

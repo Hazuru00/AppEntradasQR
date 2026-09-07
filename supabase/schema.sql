@@ -55,18 +55,33 @@ FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 -- 5. Configurar Row Level Security (RLS)
 ALTER TABLE public.tickets ENABLE ROW LEVEL SECURITY;
 
+-- 6. Permisos para las keys de la API (con "Automatically expose new tables" desactivado no hay autogrants)
+GRANT USAGE ON SCHEMA public TO service_role;
+GRANT ALL ON public.tickets TO service_role;
+
+-- La app usa la secret key (service_role), pero dejamos también los permisos de lectura/inserción
+-- públicos para la publishable key si algún día se usa supabase-js desde el navegador (RLS/policies).
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
+GRANT SELECT, INSERT ON public.tickets TO anon, authenticated;
+
 -- Política para permitir que cualquiera pueda registrar una compra (INSERT)
+DROP POLICY IF EXISTS "Permitir compras públicas" ON public.tickets;
 CREATE POLICY "Permitir compras públicas"
 ON public.tickets FOR INSERT
 WITH CHECK (true);
 
 -- Política para permitir que cualquier persona con su ID o Token pueda consultar su entrada (SELECT)
+DROP POLICY IF EXISTS "Permitir lectura de entrada por token o id" ON public.tickets;
 CREATE POLICY "Permitir lectura de entrada por token o id"
 ON public.tickets FOR SELECT
 USING (true);
 
 -- Política para que el Service Role o Admin pueda actualizar estados (UPDATE)
+DROP POLICY IF EXISTS "Permitir actualización a través de service role o server actions" ON public.tickets;
 CREATE POLICY "Permitir actualización a través de service role o server actions"
 ON public.tickets FOR UPDATE
 USING (true)
 WITH CHECK (true);
+
+-- 7. Revisar que los permisos quedaron bien (debe devolver una lista de roles sin error)
+SELECT grantee FROM information_schema.role_table_grants WHERE table_name = 'tickets' AND grantee = 'service_role';
