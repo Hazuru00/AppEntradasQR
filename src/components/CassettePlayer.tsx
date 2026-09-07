@@ -20,7 +20,7 @@ export function CassettePlayer() {
   const [loading, setLoading] = useState(true);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [playing, setPlaying] = useState(false);
-  const [volume, setVolume] = useState(0.5);
+  const [volume, setVolume] = useState(0.25);
   const [progress, setProgress] = useState(0);
   const [elapsed, setElapsed] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -274,7 +274,7 @@ export function CassettePlayer() {
             <button
               type="button"
               onClick={() => {
-                const next = volume > 0 ? 0 : 0.5;
+                const next = volume > 0 ? 0 : 0.25;
                 setVolume(next);
               }}
               className="win98-btn py-1.5 px-2.5 sm:py-1 sm:px-2 text-xs"
