@@ -1,12 +1,13 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { parseBuffer } from 'music-metadata';
 import { checkIsAdmin } from '@/lib/auth';
 import { checkDevPassword } from '@/lib/dev';
-import { listMusicTracks, uploadTrack, deleteTrack, MusicTrack, AUDIO_EXTS } from '@/lib/music';
+import { listMusicTracks, deleteTrack, MusicTrack, AUDIO_EXTS, readTrackMetadata, writeTrackMetadata, slugifyTitle } from '@/lib/music';
+import { supabaseAdmin } from '@/lib/supabase';
 import { writeAuditLog } from '@/lib/audit';
 
+const BUCKET = 'music';
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024; // 25 MB
 const MAX_COVER_BYTES = 5 * 1024 * 1024; // 5 MB
 
@@ -21,73 +22,89 @@ async function authorize(devPassword: string): Promise<boolean> {
   return checkDevPassword(devPassword);
 }
 
-// Dev: sube/reemplaza una canción y su portada al bucket 'music'.
-export async function devUploadTrackAction(formData: FormData): Promise<{ success: boolean; error?: string }> {
-  const devPassword = (formData.get('devPassword') as string) || '';
+export interface SignedUpload {
+  path: string;
+  token: string;
+  uploadUrl: string;
+}
+
+async function makeSignedUpload(path: string): Promise<SignedUpload | null> {
+  if (!supabaseAdmin) return null;
+  const { data, error } = await supabaseAdmin.storage.from(BUCKET).createSignedUploadUrl(path, { upsert: true });
+  if (error || !data) return null;
+  return { path: data.path, token: data.token, uploadUrl: data.signedUrl };
+}
+
+export interface MusicUploadRequestInput {
+  title: string;
+  artist: string;
+  audioName: string;
+  audioType: string;
+  audioSize: number;
+  coverName?: string;
+  coverType?: string;
+  coverSize?: number;
+}
+
+// Dev: valida la credencial y genera URLs firmadas para que el navegador suba
+// el audio/portada DIRECTAMENTE a Supabase (Vercel corta cuerpos >4.5 MB).
+export async function devUploadRequestAction(
+  devPassword: string,
+  input: MusicUploadRequestInput
+): Promise<{ success: boolean; slug?: string; audio?: SignedUpload; cover?: SignedUpload | null; error?: string }> {
   if (!(await authorize(devPassword))) {
-    return { success: false, error: 'Contraseña de desarrollo incorrecta.' };
+    return { success: false, error: 'Contraseña de desarrollo incorrecta o sesión expirada.' };
   }
 
-  const title = (formData.get('title') as string || '').trim();
-  const artist = (formData.get('artist') as string || '').trim();
-  const audio = formData.get('audio') as File | null;
-  const cover = formData.get('cover') as File | null;
+  const dot = input.audioName.lastIndexOf('.');
+  const audioExt = dot >= 0 ? input.audioName.slice(dot + 1).toLowerCase() : '';
+  if (!AUDIO_EXTS.includes(audioExt)) return { success: false, error: 'El archivo de audio no es válido.' };
+  if (input.audioSize > MAX_AUDIO_BYTES) return { success: false, error: 'El audio supera 25 MB.' };
 
-  if (!audio || !audio.size) return { success: false, error: 'Selecciona un archivo de audio.' };
-  if (!audio.type.startsWith('audio/')) return { success: false, error: 'El archivo de audio no es válido.' };
-  if (audio.size > MAX_AUDIO_BYTES) return { success: false, error: 'El audio supera 25 MB.' };
-  if (cover && cover.size > MAX_COVER_BYTES) return { success: false, error: 'La portada supera 5 MB.' };
-
-  const audioBuffer = await audio.arrayBuffer();
-
-  // --- Extracción automática de metadatos: título, artista y portada del MP3 ---
-  let finalTitle = title;
-  let finalArtist = artist;
-  let coverBuffer = cover ? await cover.arrayBuffer() : null;
-  let coverType = cover?.type;
-
-  const dot = audio.name.lastIndexOf('.');
-  const fileExt = dot >= 0 ? audio.name.slice(dot + 1).toLowerCase() : '';
-  const coverFallbackNeed = !coverBuffer;
-  const needMeta = !finalTitle || !finalArtist || coverFallbackNeed;
-
-  if (needMeta) {
-    try {
-      const md = await parseBuffer(Buffer.from(audioBuffer), { mimeType: audio.type, size: audio.size });
-      if (!finalTitle) finalTitle = (md.common.title || '').trim();
-      if (!finalArtist) finalArtist = (md.common.artist || '').trim();
-      if (coverFallbackNeed && md.common.picture && md.common.picture.length > 0) {
-        const pic = md.common.picture[0];
-        const data = pic.data as Uint8Array;
-        coverBuffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer;
-        coverType = pic.format || 'image/jpeg';
-      }
-    } catch {
-      // Sin metadatos legibles; seguimos con los valores manuales (o el nombre del archivo).
-    }
+  let slug = slugifyTitle(input.title);
+  if (!slug) {
+    const base = dot >= 0 ? input.audioName.slice(0, dot) : input.audioName;
+    slug = slugifyTitle(base.replace(/[-_]+/g, ' ')) || 'cancion';
   }
 
-  // Título por defecto: nombre del archivo sin extensión.
-  if (!finalTitle) {
-    const base = dot >= 0 ? audio.name.slice(0, dot) : audio.name;
-    finalTitle = base.replace(/[-_]+/g, ' ').trim() || 'Sin título';
+  const audio = await makeSignedUpload(`${slug}.${audioExt}`);
+  if (!audio) return { success: false, error: 'No se pudo preparar la subida (revisa Storage/Supabase).' };
+
+  let cover: SignedUpload | null = null;
+  if (input.coverName) {
+    if (!input.coverType) return { success: false, error: 'Tipo de portada inválido.' };
+    if (!input.coverSize) return { success: false, error: 'Tamaño de portada inválido.' };
+    if (input.coverSize > MAX_COVER_BYTES) return { success: false, error: 'La portada supera 5 MB.' };
+    const cDot = input.coverName.lastIndexOf('.');
+    const cExt = (cDot >= 0 ? input.coverName.slice(cDot + 1) : 'jpg').toLowerCase();
+    const cleanExt = cExt === 'jpeg' ? 'jpg' : cExt;
+    cover = await makeSignedUpload(`${slug}.${cleanExt}`);
+    if (!cover) return { success: false, error: 'No se pudo preparar la subida de la portada.' };
   }
 
-  const { slug, error } = await uploadTrack({
-    title: finalTitle,
-    artist: finalArtist,
-    audio: audioBuffer,
-    audioType: audio.type,
-    audioExt: AUDIO_EXTS.includes(fileExt) ? fileExt : fileExt || 'mp3',
-    cover: coverBuffer,
-    coverType,
-  });
+  return { success: true, slug, audio, cover };
+}
 
-  if (error) return { success: false, error };
+// Dev: finaliza la subida guardando los metadatos (título/artista) y la playlist.
+export async function devUploadTrackAction(
+  devPassword: string,
+  input: { slug: string; title: string; artist: string }
+): Promise<{ success: boolean; error?: string }> {
+  if (!(await authorize(devPassword))) {
+    return { success: false, error: 'Contraseña de desarrollo incorrecta o sesión expirada.' };
+  }
+  if (!input.slug) return { success: false, error: 'Slug inválido.' };
+
+  const meta = await readTrackMetadata();
+  meta[input.slug] = {
+    title: input.title || input.slug,
+    ...(input.artist ? { artist: input.artist } : {}),
+  };
+  await writeTrackMetadata(meta);
 
   writeAuditLog({
     action: 'MUSIC_UPLOAD',
-    details: JSON.stringify({ title: finalTitle, artist: finalArtist || null, slug }),
+    details: JSON.stringify({ title: input.title || input.slug, artist: input.artist || null, slug: input.slug }),
   });
 
   revalidatePath('/');
@@ -100,7 +117,7 @@ export async function devDeleteTrackAction(
   devPassword: string
 ): Promise<{ success: boolean; error?: string }> {
   if (!(await authorize(devPassword))) {
-    return { success: false, error: 'Contraseña de desarrollo incorrecta.' };
+    return { success: false, error: 'Contraseña de desarrollo incorrecta o sesión expirada.' };
   }
 
   const res = await deleteTrack(slug);

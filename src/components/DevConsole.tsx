@@ -30,10 +30,12 @@ import {
   devClearTicketsAction,
 } from '@/actions/dev';
 import {
+  devUploadRequestAction,
   devUploadTrackAction,
   devDeleteTrackAction,
   getMusicPlaylistAction,
 } from '@/actions/music';
+import { supabasePublic } from '@/lib/supabase';
 import { MusicTrack } from '@/lib/music';
 import { parseBlob } from 'music-metadata-browser';
 import { formatUSD, formatBs, formatDateTime } from '@/lib/utils';
@@ -645,37 +647,64 @@ function MusicAdmin({ devPassword }: { devPassword: string }) {
       setMsg({ type: 'err', text: 'Selecciona el archivo de audio.' });
       return;
     }
-    if (extracting) return;
+    if (extracting || busy) return;
 
     setBusy(true);
-    setMsg({ type: 'ok', text: 'Subiendo canción… (puede tardar según tu conexión)' });
-    const fd = new FormData();
-    fd.set('devPassword', devPassword);
-    fd.set('title', title.trim());
-    fd.set('artist', artist.trim());
-    fd.set('audio', audioFile);
-    if (coverFile) fd.set('cover', coverFile);
+    setMsg({ type: 'ok', text: 'Preparando la subida…' });
 
-    devUploadTrackAction(fd)
-      .then((res) => {
-        setBusy(false);
-        setMsg(res.success ? { type: 'ok', text: 'Canción subida. Ya suena en la web.' } : { type: 'err', text: res.error || 'Error al subir.' });
-        if (res.success) {
-          setTitle('');
-          setArtist('');
-          setAudioFile(null);
-          setCoverFile(null);
-          if (coverPreview) {
-            URL.revokeObjectURL(coverPreview);
-            setCoverPreview(null);
-          }
-          refresh();
+    devUploadRequestAction(devPassword, {
+      title: title.trim(),
+      artist: artist.trim(),
+      audioName: audioFile.name,
+      audioType: audioFile.type,
+      audioSize: audioFile.size,
+      coverName: coverFile ? coverFile.name : undefined,
+      coverType: coverFile?.type,
+      coverSize: coverFile?.size,
+    })
+      .then(async (req) => {
+        if (!req.success || !req.audio || !req.slug) {
+          throw new Error(req.error || 'No se pudo preparar la subida.');
         }
+        if (!supabasePublic) throw new Error('Supabase no está configurado en el cliente.');
+
+        setMsg({ type: 'ok', text: 'Subiendo directamente a Supabase… (según tu conexión)' });
+
+        const audioRes = await supabasePublic.storage
+          .from('music')
+          .uploadToSignedUrl(req.audio.path, req.audio.token, audioFile, { upsert: true });
+        if (audioRes.error) throw new Error(`Error subiendo el audio: ${audioRes.error.message}`);
+
+        if (req.cover && coverFile) {
+          const coverRes = await supabasePublic.storage
+            .from('music')
+            .uploadToSignedUrl(req.cover.path, req.cover.token, coverFile, { upsert: true });
+          if (coverRes.error) throw new Error(`Error subiendo la portada: ${coverRes.error.message}`);
+        }
+
+        const fin = await devUploadTrackAction(devPassword, {
+          slug: req.slug,
+          title: title.trim(),
+          artist: artist.trim(),
+        });
+        if (!fin.success) throw new Error(fin.error || 'Error guardando la playlist.');
       })
-      .catch(() => {
-        setBusy(false);
-        setMsg({ type: 'err', text: 'Error de red al subir. Revisa tu conexión y vuelve a intentarlo.' });
-      });
+      .then(() => {
+        setMsg({ type: 'ok', text: 'Canción subida. Ya suena en la web.' });
+        setTitle('');
+        setArtist('');
+        setAudioFile(null);
+        setCoverFile(null);
+        if (coverPreview) {
+          URL.revokeObjectURL(coverPreview);
+          setCoverPreview(null);
+        }
+        refresh();
+      })
+      .catch((err: Error) => {
+        setMsg({ type: 'err', text: err.message || 'Error de red al subir.' });
+      })
+      .finally(() => setBusy(false));
   };
 
   const handleDelete = (slug: string) => {

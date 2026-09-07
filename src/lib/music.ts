@@ -32,7 +32,7 @@ function publicUrl(name: string): string {
 }
 
 // Lee metadata.json del bucket (si existe). No lanza: si falla/404 devuelve {}.
-async function readTrackMetadata(): Promise<MetadataMap> {
+export async function readTrackMetadata(): Promise<MetadataMap> {
   try {
     const res = await fetch(publicUrl(METADATA_FILE), { cache: 'no-store' });
     if (!res.ok) return {};
@@ -43,7 +43,7 @@ async function readTrackMetadata(): Promise<MetadataMap> {
   }
 }
 
-async function writeTrackMetadata(meta: MetadataMap): Promise<void> {
+export async function writeTrackMetadata(meta: MetadataMap): Promise<void> {
   if (!supabaseAdmin) return;
   const body = new Blob([JSON.stringify(meta, null, 2)], { type: 'application/json' });
   await supabaseAdmin.storage
@@ -109,52 +109,6 @@ export async function listMusicTracks(): Promise<MusicTrack[]> {
       coverUrl: entry.cover ? publicUrl(entry.cover) : null,
       size: entry.size,
     }));
-}
-
-export interface UploadTrackInput {
-  title: string;
-  artist?: string;
-  audio: ArrayBuffer;
-  audioType: string;
-  audioExt?: string;
-  cover?: ArrayBuffer | null;
-  coverType?: string;
-}
-
-// Sube (o reemplaza) una canción y su portada al bucket. Retorna el slug.
-export async function uploadTrack(input: UploadTrackInput): Promise<{ slug: string; error?: string }> {
-  if (!supabaseAdmin) return { slug: '', error: 'Supabase no está configurado.' };
-
-  const slug = slugifyTitle(input.title);
-  if (!slug) return { slug: '', error: 'Título inválido para generar el nombre del archivo.' };
-
-  const audioExt = (input.audioExt || 'mp3').replace(/[^a-z0-9]/g, '') || 'mp3';
-  const audioName = `${slug}.${audioExt}`;
-  const { error: audioErr } = await supabaseAdmin.storage.from(BUCKET).upload(audioName, input.audio, {
-    contentType: input.audioType || 'audio/mpeg',
-    upsert: true,
-  });
-  if (audioErr) return { slug: '', error: `Error subiendo audio: ${audioErr.message}` };
-
-  if (input.cover) {
-    const coverExt = (input.coverType || 'image/jpeg').split('/')[1] || 'jpg';
-    const coverName = `${slug}.${coverExt === 'jpeg' ? 'jpg' : coverExt}`;
-    const { error: coverErr } = await supabaseAdmin.storage.from(BUCKET).upload(coverName, input.cover, {
-      contentType: input.coverType || 'image/jpeg',
-      upsert: true,
-    });
-    if (coverErr) console.warn('Error subiendo portada:', coverErr.message);
-  }
-
-  // Guarda título/artista reales para que el reproductor los muestre.
-  const meta = await readTrackMetadata();
-  meta[slug] = {
-    title: input.title,
-    ...(input.artist ? { artist: input.artist } : {}),
-  };
-  await writeTrackMetadata(meta);
-
-  return { slug };
 }
 
 export async function deleteTrack(slug: string): Promise<{ success: boolean; error?: string }> {
