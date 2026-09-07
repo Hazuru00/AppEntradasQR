@@ -35,6 +35,7 @@ import {
   getMusicPlaylistAction,
 } from '@/actions/music';
 import { MusicTrack } from '@/lib/music';
+import { parseBlob } from 'music-metadata-browser';
 import { formatUSD, formatBs, formatDateTime } from '@/lib/utils';
 
 interface DevConsoleProps {
@@ -580,6 +581,8 @@ function MusicAdmin({ devPassword }: { devPassword: string }) {
   const [artist, setArtist] = useState('');
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [coverPreview, setCoverPreview] = useState<string | null>(null);
+  const [extracting, setExtracting] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -592,14 +595,60 @@ function MusicAdmin({ devPassword }: { devPassword: string }) {
     refresh();
   }, []);
 
+  // Lee los metadatos del MP3 al elegirlo: llena título/artista y usa la portada embebida.
+  const onAudioSelected = async (file: File) => {
+    setAudioFile(file);
+    setMsg(null);
+    setExtracting(true);
+    try {
+      const md = await parseBlob(file);
+      const mdTitle = (md.common.title || '').trim();
+      const mdArtist = (md.common.artist || '').trim();
+      if (mdTitle) setTitle((prev) => prev || mdTitle);
+      if (mdArtist) setArtist((prev) => prev || mdArtist);
+      if (md.common.picture && md.common.picture.length > 0 && !coverFile) {
+        const pic = md.common.picture[0];
+        const picBytes = new Uint8Array(pic.data);
+        const blob = new Blob([picBytes], { type: pic.format || 'image/jpeg' });
+        const ext = (pic.format || 'image/jpeg').split('/')[1] || 'jpg';
+        const f = new File([blob], `portada.${ext === 'jpeg' ? 'jpg' : ext}`, { type: pic.format || 'image/jpeg' });
+        setCoverFile(f);
+        setCoverPreview(URL.createObjectURL(f));
+      }
+      const found: string[] = [];
+      if (mdTitle) found.push('título');
+      if (mdArtist) found.push('artista');
+      if (md.common.picture?.length) found.push('portada');
+      setMsg(
+        found.length > 0
+          ? { type: 'ok', text: `[ Metadatos leídos del archivo: ${found.join(', ')} ]` }
+          : { type: 'err', text: 'El archivo no trae metadatos; escribe título/artista o presiona subir igual (usará el nombre del archivo).' }
+      );
+    } catch {
+      setMsg({ type: 'err', text: 'No se pudieron leer los metadatos de este archivo.' });
+    } finally {
+      setExtracting(false);
+    }
+  };
+
+  const onCoverSelected = (file: File | null) => {
+    setCoverFile(file);
+    if (coverPreview) {
+      URL.revokeObjectURL(coverPreview);
+      setCoverPreview(null);
+    }
+    if (file) setCoverPreview(URL.createObjectURL(file));
+  };
+
   const handleUpload = () => {
     if (!audioFile) {
       setMsg({ type: 'err', text: 'Selecciona el archivo de audio.' });
       return;
     }
+    if (extracting) return;
 
     setBusy(true);
-    setMsg(null);
+    setMsg({ type: 'ok', text: 'Subiendo canción… (puede tardar según tu conexión)' });
     const fd = new FormData();
     fd.set('devPassword', devPassword);
     fd.set('title', title.trim());
@@ -615,6 +664,10 @@ function MusicAdmin({ devPassword }: { devPassword: string }) {
         setArtist('');
         setAudioFile(null);
         setCoverFile(null);
+        if (coverPreview) {
+          URL.revokeObjectURL(coverPreview);
+          setCoverPreview(null);
+        }
         refresh();
       }
     });
@@ -733,30 +786,61 @@ function MusicAdmin({ devPassword }: { devPassword: string }) {
             <input
               type="file"
               accept="audio/*"
-              onChange={(e) => setAudioFile(e.target.files?.[0] || null)}
+              onChange={(e) => {
+                const f = e.target.files?.[0] || null;
+                if (f) onAudioSelected(f);
+                else setAudioFile(null);
+              }}
               className="text-xs text-white file:mr-3 file:py-1 file:px-3 file:rounded-none file:border file:border-[#5a5d72] file:bg-[#181922] file:text-white file:text-xs"
             />
+            {extracting && (
+              <span className="flex items-center gap-1.5 text-[10px] text-[#b5a642]">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                Leyendo metadatos del archivo…
+              </span>
+            )}
+            {audioFile && !extracting && (
+              <span className="text-[10px] text-[#8f92a8]">
+                {audioFile.name} · {(audioFile.size / 1048576).toFixed(1)} MB
+              </span>
+            )}
           </div>
 
           <div className="space-y-1">
             <label className="text-[10px] text-[#8f92a8] uppercase block">Portada (opcional; si el MP3 trae una, se usa esa)</label>
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              onChange={(e) => setCoverFile(e.target.files?.[0] || null)}
-              className="text-xs text-white file:mr-3 file:py-1 file:px-3 file:rounded-none file:border file:border-[#5a5d72] file:bg-[#181922] file:text-white file:text-xs"
-            />
+            <div className="flex items-center gap-2">
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={(e) => onCoverSelected(e.target.files?.[0] || null)}
+                className="text-xs text-white file:mr-3 file:py-1 file:px-3 file:rounded-none file:border file:border-[#5a5d72] file:bg-[#181922] file:text-white file:text-xs"
+              />
+              {coverPreview && (
+                <div className="relative shrink-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={coverPreview} alt="" className="w-11 h-11 object-cover border border-[#3b3e52]" />
+                  <button
+                    type="button"
+                    onClick={() => onCoverSelected(null)}
+                    className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-[#8c2727] border border-[#c24646] text-white text-[9px] leading-none"
+                    title="Quitar portada"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center justify-end">
             <button
               type="button"
-              disabled={busy}
+              disabled={busy || extracting}
               onClick={handleUpload}
               className="win98-btn win98-btn-primary py-1.5 px-3 text-xs flex items-center gap-1.5 disabled:opacity-50"
             >
               {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
-              Subir canción (reemplaza si existe)
+              {busy ? 'Subiendo…' : 'Subir canción (reemplaza si existe)'}
             </button>
           </div>
         </div>
