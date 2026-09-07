@@ -14,6 +14,15 @@ import {
 import { MusicTrack } from '@/lib/music';
 import { getMusicPlaylistAction } from '@/actions/music';
 
+function shuffle<T>(list: T[]): T[] {
+  const a = [...list];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 export function CassettePlayer() {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [tracks, setTracks] = useState<MusicTrack[]>([]);
@@ -26,6 +35,9 @@ export function CassettePlayer() {
   const [duration, setDuration] = useState(0);
   const [listOpen, setListOpen] = useState(false);
   const autoplayAttemptedRef = useRef(false);
+  // Al cambiar de pista, reproducimos cuando el nuevo src haya cargado
+  // (evita perder el autoplay por el clásico race de load()+play()).
+  const pendingPlayRef = useRef(false);
 
   const current: MusicTrack | undefined = tracks[currentIdx];
 
@@ -67,7 +79,8 @@ export function CassettePlayer() {
     let cancelled = false;
     getMusicPlaylistAction()
       .then((res) => {
-        if (!cancelled && res.tracks.length > 0) setTracks(res.tracks);
+        // Orden aleatorio distinto en cada carga de página.
+        if (!cancelled && res.tracks.length > 0) setTracks(shuffle(res.tracks));
       })
       .catch(() => {})
       .finally(() => {
@@ -123,12 +136,10 @@ export function CassettePlayer() {
     setProgress(0);
     setElapsed(0);
     setDuration(0);
-    const audio = audioRef.current;
-    if (audio) {
-      audio.load();
-      audio.play().catch(() => {});
-      setPlaying(true);
-    }
+    setPlaying(true);
+    // El nuevo src se aplica en el re-render; la reproducción la dispara
+    // onLoadedMetadata (autoplay automático al cambiar de canción).
+    pendingPlayRef.current = true;
   };
 
   const handleEnded = () => {
@@ -157,6 +168,10 @@ export function CassettePlayer() {
           setDuration(isFinite(d) ? d : 0);
           setElapsed(0);
           setProgress(0);
+          if (pendingPlayRef.current) {
+            pendingPlayRef.current = false;
+            e.currentTarget.play().catch(() => {});
+          }
         }}
         onTimeUpdate={(e) => {
           const t = e.currentTarget.currentTime;
