@@ -656,32 +656,43 @@ function MusicAdmin({ devPassword }: { devPassword: string }) {
     fd.set('audio', audioFile);
     if (coverFile) fd.set('cover', coverFile);
 
-    devUploadTrackAction(fd).then((res) => {
-      setBusy(false);
-      setMsg(res.success ? { type: 'ok', text: 'Canción subida. Ya suena en la web.' } : { type: 'err', text: res.error || 'Error al subir.' });
-      if (res.success) {
-        setTitle('');
-        setArtist('');
-        setAudioFile(null);
-        setCoverFile(null);
-        if (coverPreview) {
-          URL.revokeObjectURL(coverPreview);
-          setCoverPreview(null);
+    devUploadTrackAction(fd)
+      .then((res) => {
+        setBusy(false);
+        setMsg(res.success ? { type: 'ok', text: 'Canción subida. Ya suena en la web.' } : { type: 'err', text: res.error || 'Error al subir.' });
+        if (res.success) {
+          setTitle('');
+          setArtist('');
+          setAudioFile(null);
+          setCoverFile(null);
+          if (coverPreview) {
+            URL.revokeObjectURL(coverPreview);
+            setCoverPreview(null);
+          }
+          refresh();
         }
-        refresh();
-      }
-    });
+      })
+      .catch(() => {
+        setBusy(false);
+        setMsg({ type: 'err', text: 'Error de red al subir. Revisa tu conexión y vuelve a intentarlo.' });
+      });
   };
 
   const handleDelete = (slug: string) => {
     setBusy(true);
     setMsg(null);
-    devDeleteTrackAction(slug, devPassword).then((res) => {
-      setBusy(false);
-      setConfirmDelete(null);
-      setMsg(res.success ? { type: 'ok', text: 'Canción borrada del bucket.' } : { type: 'err', text: res.error || 'Error al borrar.' });
-      refresh();
-    });
+    devDeleteTrackAction(slug, devPassword)
+      .then((res) => {
+        setBusy(false);
+        setConfirmDelete(null);
+        setMsg(res.success ? { type: 'ok', text: 'Canción borrada del bucket.' } : { type: 'err', text: res.error || 'Error al borrar.' });
+        refresh();
+      })
+      .catch(() => {
+        setBusy(false);
+        setConfirmDelete(null);
+        setMsg({ type: 'err', text: 'Error de red al borrar. Revisa tu conexión.' });
+      });
   };
 
   return (
