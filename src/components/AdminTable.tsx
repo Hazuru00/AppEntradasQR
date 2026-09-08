@@ -25,6 +25,7 @@ import { Ticket, TicketStatus, DashboardStats } from '@/lib/types';
 import { adminApproveTicketAction, adminRejectTicketAction } from '@/actions/tickets';
 import { devDeleteTicketAction, devClearTicketsAction } from '@/actions/dev';
 import { logoutAdminAction } from '@/actions/auth';
+import { AdminNotifications } from '@/components/AdminNotifications';
 import { formatUSD, formatBs, formatDateTime } from '@/lib/utils';
 import { EventConfig } from '@/config/event';
 
@@ -207,6 +208,8 @@ export function AdminTable({ tickets, stats, event }: AdminTableProps) {
                 <QrCode className="w-3.5 h-3.5" />
                 <span>ABRIR ESCÁNER QR</span>
               </Link>
+
+              <AdminNotifications />
 
               <button
                 type="button"
