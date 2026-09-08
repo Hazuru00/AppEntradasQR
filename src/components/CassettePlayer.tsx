@@ -47,18 +47,9 @@ export function CassettePlayer() {
     if (autoplayAttemptedRef.current) return;
     const audio = audioRef.current;
     if (!audio) return;
-    if (!audio.paused) {
-      autoplayAttemptedRef.current = true;
-      return;
-    }
-    audio
-      .play()
-      .then(() => {
-        autoplayAttemptedRef.current = true;
-      })
-      .catch(() => {
-        autoplayAttemptedRef.current = true;
-      });
+    // Si lo bloquean (autoplay con sonido requiere interacción en PC), NO marcamos
+    // la bandera: así el primer click/tap/tecla en la página disparará el play.
+    audio.play().catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -163,7 +154,10 @@ export function CassettePlayer() {
         ref={audioRef}
         src={trackSrc}
         onEnded={handleEnded}
-        onPlay={() => setPlaying(true)}
+        onPlay={() => {
+          autoplayAttemptedRef.current = true;
+          setPlaying(true);
+        }}
         onPause={() => setPlaying(false)}
         onLoadedMetadata={(e) => {
           const d = e.currentTarget.duration || 0;
