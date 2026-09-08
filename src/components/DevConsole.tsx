@@ -195,7 +195,7 @@ export function DevConsole({ tickets, event }: DevConsoleProps) {
 
   if (!unlocked) {
     return (
-      <div className="min-h-screen bg-[#14151b] text-white px-4 py-6 max-w-xl mx-auto space-y-4 font-mono">
+      <div className="min-h-screen bg-[#14151b] text-white px-4 py-6 max-w-xl mx-auto space-y-4 font-mono overflow-x-clip">
         <div className="flex items-center justify-between border-b border-[#363847] pb-3">
           <Link href="/admin" className="win98-btn text-xs py-1 px-3 flex items-center gap-1.5">
             <ArrowLeft className="w-3.5 h-3.5" />
@@ -268,7 +268,7 @@ export function DevConsole({ tickets, event }: DevConsoleProps) {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6 space-y-5 font-mono">
+    <div className="max-w-6xl mx-auto px-4 py-6 space-y-5 font-mono overflow-x-clip">
       <div className="win98-box overflow-hidden">
         <div className="win98-titlebar">
           <div className="flex items-center gap-2">
@@ -293,7 +293,7 @@ export function DevConsole({ tickets, event }: DevConsoleProps) {
               </h1>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Link href="/admin" className="win98-btn text-xs py-2 px-3 flex items-center gap-1.5">
                 <ArrowLeft className="w-3.5 h-3.5" />
                 <span>Panel Admin</span>

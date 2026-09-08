@@ -171,7 +171,7 @@ export function AdminTable({ tickets, stats, event }: AdminTableProps) {
   });
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8 space-y-6 font-mono">
+    <div className="max-w-6xl mx-auto px-4 py-8 space-y-6 font-mono overflow-x-clip">
       {/* VENTANA DEL PANEL ADMINISTRATIVO */}
       <div className="win98-box overflow-hidden">
         {/* Barra de Título Windows 98 */}
@@ -200,7 +200,7 @@ export function AdminTable({ tickets, stats, event }: AdminTableProps) {
               </h1>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Link
                 href="/admin/scan"
                 className="win98-btn win98-btn-primary text-xs py-2 px-3.5 flex items-center gap-2"
