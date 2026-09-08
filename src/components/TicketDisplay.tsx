@@ -36,11 +36,9 @@ export function TicketDisplay({ ticket, event, appUrl }: TicketDisplayProps) {
   const [copiedLink, setCopiedLink] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
-  const ticketRef = useRef<HTMLDivElement>(null);
-  // Ancho fijo del boleto: igual en todos los dispositivos para que el PNG/imagen salga idéntico.
+  const captureRef = useRef<HTMLDivElement>(null);
+  // Ancho fijo del nodo de captura: igual en todos los dispositivos para que el PNG salga idéntico.
   const PRINT_W = 544;
-  const [view, setView] = useState({ scale: 1, height: 0 });
-  const scaleWrapRef = useRef<HTMLDivElement>(null);
 
   const validationUrl = `${appUrl}/validar/${ticket.token}`;
 
@@ -56,26 +54,6 @@ export function TicketDisplay({ ticket, event, appUrl }: TicketDisplayProps) {
       } catch {}
     }
   }, [ticket.status]);
-
-  useEffect(() => {
-    const measure = () => {
-      const wrap = scaleWrapRef.current;
-      const node = ticketRef.current;
-      if (!wrap || !node) return;
-      const scale = Math.min(1, wrap.clientWidth / PRINT_W);
-      setView({ scale, height: node.offsetHeight * scale });
-    };
-    measure();
-    if (typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver(measure);
-    if (scaleWrapRef.current) ro.observe(scaleWrapRef.current);
-    if (ticketRef.current) ro.observe(ticketRef.current);
-    window.addEventListener('resize', measure);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener('resize', measure);
-    };
-  }, []);
 
   const handleCopyLink = () => {
     if (typeof window !== 'undefined') {
@@ -93,11 +71,11 @@ export function TicketDisplay({ ticket, event, appUrl }: TicketDisplayProps) {
   };
 
   const handleDownload = async () => {
-    if (!ticketRef.current) return;
+    if (!captureRef.current) return;
 
     setIsDownloading(true);
     try {
-      const dataUrl = await toPng(ticketRef.current, {
+      const dataUrl = await toPng(captureRef.current, {
         backgroundColor: '#14151b',
         pixelRatio: 2,
         cacheBust: true,
@@ -118,44 +96,10 @@ export function TicketDisplay({ ticket, event, appUrl }: TicketDisplayProps) {
   );
   const whatsappUrl = `https://wa.me/${event.contact.whatsapp}?text=${whatsappMessage}`;
 
-  return (
-    <div className="max-w-xl mx-auto px-4 py-8 pb-44 sm:pb-36">
-      {/* Botones superiores */}
-      <div className="mb-4 flex items-center justify-between">
-        <Link
-          href="/"
-          className="win98-btn text-xs py-1 px-3 flex items-center gap-1.5"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          <span>Volver al Inicio</span>
-        </Link>
-
-        <button
-          type="button"
-          onClick={handleRefresh}
-          className="win98-btn text-xs py-1 px-3 flex items-center gap-1.5"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
-          <span>Actualizar</span>
-        </button>
-      </div>
-
-      {/* VENTANA ESTILO WINDOWS 98 / Y2K — layout fijo (544px).
-          En móvil se escala visualmente para caber, pero el PNG (html-to-image usa
-          clientWidth) siempre sale al tamaño real, idéntico en PC y teléfono. */}
-      <div className="overflow-hidden" ref={scaleWrapRef}>
-        <div style={{ width: PRINT_W, marginInline: 'auto' }}>
-          <div style={{ height: view.height }}>
-            <div style={{ width: PRINT_W, transform: `scale(${view.scale})`, transformOrigin: 'top center' }}>
-              <motion.div
-                ref={ticketRef}
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        className="win98-box rounded-none overflow-hidden"
-      >
-        {/* Barra de Título */}
-        <div className="win98-titlebar">
+  const ticketInner = (
+    <>
+      {/* Barra de Título */}
+      <div className="win98-titlebar">
           <div className="flex items-center gap-2">
             <Monitor className="w-3.5 h-3.5 text-white" />
             <span className="font-mono text-xs">TICKET_VIEWER.EXE - [{ticket.buyer_name.toUpperCase()}]</span>
@@ -333,13 +277,57 @@ export function TicketDisplay({ ticket, event, appUrl }: TicketDisplayProps) {
           <span>Admite: {ticket.quantity} pers.</span>
           <span>Seguridad: Verificado</span>
         </div>
-              </motion.div>
-            </div>
-          </div>
+    </>
+  );
+
+  return (
+    <div className="max-w-xl mx-auto px-4 py-8 pb-44 sm:pb-36">
+      {/* Botones superiores */}
+      <div className="mb-4 flex items-center justify-between">
+        <Link
+          href="/"
+          className="win98-btn text-xs py-1 px-3 flex items-center gap-1.5"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>Volver al Inicio</span>
+        </Link>
+
+        <button
+          type="button"
+          onClick={handleRefresh}
+          className="win98-btn text-xs py-1 px-3 flex items-center gap-1.5"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+          <span>Actualizar</span>
+        </button>
+      </div>
+
+      {/* VENTANA VISIBLE del boleto: ancho 100%, se adapta y nunca se sale de pantalla.
+          El PNG se captura del nodo oculto de 544px para que salga idéntico en PC y teléfono. */}
+      <div className="mx-auto max-w-[544px]">
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          className="win98-box rounded-none overflow-hidden"
+        >
+          {ticketInner}
+        </motion.div>
+      </div>
+
+      {/* NODO OCULTO de captura (fuera de pantalla): boleto a 544px fijos.
+          Es el nodo que se exporta a PNG, idéntico en todo dispositivo. */}
+      <div aria-hidden className="pointer-events-none fixed -left-[9999px] top-0 z-0">
+        <div
+          ref={captureRef}
+          className="win98-box rounded-none overflow-hidden"
+          style={{ width: PRINT_W }}
+        >
+          {ticketInner}
         </div>
       </div>
 
-      {/* BOTONES DE ACCIÓN (fuera del boleto: no se escalan en móvil ni salen en el PNG) */}
+      {/* BOTONES DE ACCIÓN (fuera del boleto: no salen en el PNG) */}
       <div className="space-y-2 pt-2">
         {ticket.status === 'APROBADO' && (
           <button

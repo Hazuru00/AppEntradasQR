@@ -163,7 +163,7 @@ export function AdminNotifications() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 z-50 w-80 max-w-[calc(100vw-2rem)] win98-box overflow-hidden shadow-2xl">
+        <div className="fixed inset-x-2 bottom-2 z-50 sm:absolute sm:inset-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80 win98-box overflow-hidden shadow-2xl">
           <div className="win98-titlebar">
             <span className="text-xs">NOTIFICADOR DE PAGOS - [EN VIVO]</span>
             <div className="flex items-center gap-1">
