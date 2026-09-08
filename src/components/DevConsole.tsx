@@ -18,6 +18,7 @@ import {
   Music2,
   Upload,
   ListX,
+  LogOut,
 } from 'lucide-react';
 import { Ticket, TicketStatus } from '@/lib/types';
 import { EventConfig } from '@/config/event';
@@ -47,8 +48,19 @@ interface DevConsoleProps {
 
 const STATUS_OPTIONS: TicketStatus[] = ['PENDIENTE', 'APROBADO', 'RECHAZADO', 'USADO'];
 
+const DEV_SESSION_KEY = 'dev_console_session';
+
+function loadStoredDevPassword(): string {
+  if (typeof window === 'undefined') return '';
+  try {
+    return window.localStorage.getItem(DEV_SESSION_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+
 export function DevConsole({ tickets, event }: DevConsoleProps) {
-  const [devPassword, setDevPassword] = useState('');
+  const [devPassword, setDevPassword] = useState(loadStoredDevPassword);
   const [unlocked, setUnlocked] = useState(false);
   const [attemptError, setAttemptError] = useState<string | null>(null);
   const [unlocking, setUnlocking] = useState(false);
@@ -61,6 +73,44 @@ export function DevConsole({ tickets, event }: DevConsoleProps) {
   const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
   const [clearConfirm, setClearConfirm] = useState(false);
 
+  // Si hay sesión dev guardada en el dispositivo, la revalidamos contra el
+  // servidor y desbloqueamos sola (sin volver a escribir la contraseña).
+  useEffect(() => {
+    let cancelled = false;
+    const stored = loadStoredDevPassword();
+    if (!stored) return;
+    devUnlockAction(stored)
+      .then((res) => {
+        if (cancelled) return;
+        if (res.success) {
+          setUnlocked(true);
+        } else {
+          try {
+            window.localStorage.removeItem(DEV_SESSION_KEY);
+          } catch {}
+          setDevPassword('');
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          try {
+            window.localStorage.removeItem(DEV_SESSION_KEY);
+          } catch {}
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const logoutDev = () => {
+    try {
+      window.localStorage.removeItem(DEV_SESSION_KEY);
+    } catch {}
+    setDevPassword('');
+    setUnlocked(false);
+  };
+
   const tryUnlock = async () => {
     if (!devPassword.trim()) {
       setAttemptError('Ingresa la contraseña de desarrollo.');
@@ -72,6 +122,9 @@ export function DevConsole({ tickets, event }: DevConsoleProps) {
     setUnlocking(false);
     if (res.success) {
       setUnlocked(true);
+      try {
+        window.localStorage.setItem(DEV_SESSION_KEY, devPassword.trim());
+      } catch {}
     } else {
       setAttemptError(res.error || 'Contraseña incorrecta.');
     }
@@ -245,6 +298,15 @@ export function DevConsole({ tickets, event }: DevConsoleProps) {
                 <ArrowLeft className="w-3.5 h-3.5" />
                 <span>Panel Admin</span>
               </Link>
+              <button
+                type="button"
+                onClick={logoutDev}
+                className="win98-btn text-xs py-2 px-3 flex items-center gap-1.5"
+                title="Borra la sesión dev de este dispositivo"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Cerrar sesión dev</span>
+              </button>
               <button
                 type="button"
                 onClick={() => setClearConfirm(true)}
