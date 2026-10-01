@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { checkIsAdmin } from '@/lib/auth';
-import { getActiveEvent } from '@/config/event';
+import { getActiveEvent, calcTotals } from '@/config/event';
 import {
   createTicket,
   approveTicket,
@@ -63,21 +63,16 @@ export async function createTicketAction(formData: FormData): Promise<{
     }
 
     const event = getActiveEvent();
-    let priceUSD = event.singleTicket.priceUSD;
-    let priceBs = event.singleTicket.priceBs;
     let tierName = event.singleTicket.name;
     let tierId = 'general';
 
     if (event.hasMultipleTiers && event.tiers?.length) {
       const selectedTier = event.tiers.find((t) => t.id === ticketTypeId) || event.tiers[0];
-      priceUSD = selectedTier.priceUSD;
-      priceBs = selectedTier.priceBs;
       tierName = selectedTier.name;
       tierId = selectedTier.id;
     }
 
-    const totalUSD = priceUSD * quantity;
-    const totalBs = priceBs * quantity;
+    const { totalUSD, totalBs } = calcTotals(event, quantity);
 
     const newTicket = await createTicket({
       buyer_name: buyerName,

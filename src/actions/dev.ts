@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { checkIsAdmin } from '@/lib/auth';
 import { checkDevPassword } from '@/lib/dev';
-import { getActiveEvent } from '@/config/event';
+import { getActiveEvent, calcTotals } from '@/config/event';
 import {
   getTicketById,
   updateTicketFields,
@@ -54,8 +54,6 @@ export async function devUpdateTicketAction(
   if (!ticket) return { success: false, error: 'Ticket no encontrado.' };
 
   const event = getActiveEvent();
-  const unitUSD = event.singleTicket.priceUSD;
-  const unitBs = event.singleTicket.priceBs;
 
   const quantity = Math.max(1, Math.min(20, parseInt(data.quantity || String(ticket.quantity), 10)));
   const status = (data.status || ticket.status) as TicketStatus;
@@ -69,8 +67,7 @@ export async function devUpdateTicketAction(
   if (buyerPhone.length < 8) return { success: false, error: 'Teléfono inválido.' };
   if (paymentRef.length < 4) return { success: false, error: 'Referencia inválida.' };
 
-  const totalUSD = unitUSD * quantity;
-  const totalBs = unitBs * quantity;
+  const { totalUSD, totalBs } = calcTotals(event, quantity);
 
   const updated = await updateTicketFields(ticketId, {
     buyer_name: buyerName,

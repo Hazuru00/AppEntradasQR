@@ -77,7 +77,7 @@ export function EventHero({ event }: { event: EventConfig }) {
           {/* Botón de acceso a taquilla */}
           <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3">
             <span className="text-xs font-mono text-[#8f92a8]">
-              Precio: $3 USD o 3.000 Bs por persona
+              1 entrada: {event.singleTicket.priceBs.toLocaleString('es-VE')} Bs (${event.singleTicket.priceUSD}) • 2 entradas: {event.singleTicket.pairPriceBs.toLocaleString('es-VE')} Bs (${event.singleTicket.pairPriceUSD}) PROMO
             </span>
             <a
               href="#taquilla"

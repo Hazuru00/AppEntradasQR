@@ -12,6 +12,24 @@ const envCedula = process.env.NEXT_PUBLIC_PAGO_MOVIL_CEDULA?.trim();
 const envHolder = process.env.NEXT_PUBLIC_PAGO_MOVIL_TITULAR?.trim();
 const envWhatsapp = process.env.NEXT_PUBLIC_WHATSAPP?.trim();
 const envInstagram = process.env.NEXT_PUBLIC_INSTAGRAM?.trim();
+const envDate = process.env.NEXT_PUBLIC_EVENT_DATE?.trim();
+const envTime = process.env.NEXT_PUBLIC_EVENT_TIME?.trim();
+const envVenue = process.env.NEXT_PUBLIC_EVENT_VENUE?.trim();
+const envCity = process.env.NEXT_PUBLIC_EVENT_CITY?.trim();
+const envDressCode = process.env.NEXT_PUBLIC_EVENT_DRESS_CODE?.trim();
+
+// Precios configurables. La promo trata CADA PAR de entradas al precio de pareja
+// (por defecto 2 entradas = 5000 Bs) y cada entrada suelta al precio individual
+// (por defecto 1 = 3000 Bs).
+const envSinglePriceBs = numEnv(process.env.NEXT_PUBLIC_PRICE_SINGLE_BS, 3000);
+const envSinglePriceUsd = numEnv(process.env.NEXT_PUBLIC_PRICE_SINGLE_USD, 3);
+const envPairPriceBs = numEnv(process.env.NEXT_PUBLIC_PRICE_PAIR_BS, 5000);
+const envPairPriceUsd = numEnv(process.env.NEXT_PUBLIC_PRICE_PAIR_USD, 5);
+
+function numEnv(raw: string | undefined, fallback: number): number {
+  const n = Number(raw?.trim());
+  return raw && raw.trim() !== '' && Number.isFinite(n) && n > 0 ? n : fallback;
+}
 
 export interface TicketTier {
   id: string;
@@ -39,8 +57,10 @@ export interface EventConfig {
   // Precio de la entrada única (cuando hasMultipleTiers = false)
   singleTicket: {
     name: string;
-    priceUSD: number; // $3
-    priceBs: number;  // 3000 Bs
+    priceUSD: number; // $3 (1 entrada)
+    priceBs: number;  // 3000 Bs (1 entrada)
+    pairPriceUSD: number; // $5 (promo 2 entradas)
+    pairPriceBs: number;  // 5000 Bs (promo 2 entradas)
     description: string;
   };
 
@@ -66,18 +86,20 @@ export const EVENT_DATA: EventConfig = {
   id: "y2k-party-2000s",
   title: envName || "2000s Party",
   subtitle: envSubtitle || "La fiesta con lo mejor de los 2000s • Pop, Hip-Hop, Rock y Reggaetón",
-  date: "Viernes 11 de Septiembre, 2026",
-  time: "7:00 PM a 12:00 AM",
-  venue: "Salón Parroquial de la Parroquia San Juan Evangelista",
-  city: "Campo Rico",
-  dressCode: "Outfit Años 2000s (Denim, glitter, retro chic)",
+  date: envDate || "Viernes 11 de Septiembre, 2026",
+  time: envTime || "7:00 PM a 12:00 AM",
+  venue: envVenue || "Salón Parroquial de la Parroquia San Juan Evangelista",
+  city: envCity || "Campo Rico",
+  dressCode: envDressCode || "Outfit Años 2000s (Denim, glitter, retro chic)",
 
-  // Configuración de taquilla actual: ENTRADA ÚNICA $3 / 3.000 Bs
+  // Configuración de taquilla: ENTRADA 3000 Bs / 3.000 Bs con promo 2x1
   hasMultipleTiers: false,
   singleTicket: {
     name: "Entrada General",
-    priceUSD: 3,
-    priceBs: 3000,
+    priceUSD: envSinglePriceUsd,
+    priceBs: envSinglePriceBs,
+    pairPriceUSD: envPairPriceUsd,
+    pairPriceBs: envPairPriceBs,
     description: "Acceso completo al evento durante toda la noche"
   },
 
@@ -115,4 +137,21 @@ export const EVENT_DATA: EventConfig = {
 
 export function getActiveEvent(): EventConfig {
   return EVENT_DATA;
+}
+
+// Total de una orden con promo 2x1: cada PAR de entradas se cobra al precio de
+// pareja (2 = 5000 Bs) y cada entrada impar suelta al individual (1 = 3000 Bs).
+// Ej.: 1 -> 3000, 2 -> 5000, 3 -> 8000, 4 -> 10000, 5 -> 13000.
+export function calcTotals(
+  event: EventConfig,
+  quantity: number
+): { totalUSD: number; totalBs: number } {
+  const qty = Math.max(1, Math.floor(quantity));
+  const st = event.singleTicket;
+  const pairs = Math.floor(qty / 2);
+  const singles = qty % 2;
+  return {
+    totalUSD: pairs * st.pairPriceUSD + singles * st.priceUSD,
+    totalBs: pairs * st.pairPriceBs + singles * st.priceBs,
+  };
 }

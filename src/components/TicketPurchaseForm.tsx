@@ -16,7 +16,7 @@ import {
   HelpCircle,
   ArrowRight,
 } from 'lucide-react';
-import { EventConfig } from '@/config/event';
+import { EventConfig, calcTotals } from '@/config/event';
 import { createTicketAction } from '@/actions/tickets';
 
 interface TicketPurchaseFormProps {
@@ -37,11 +37,12 @@ export function TicketPurchaseForm({ event }: TicketPurchaseFormProps) {
 
   const [isPending, startTransition] = useTransition();
 
-  const unitUSD = event.singleTicket.priceUSD; // $3
+  const unitUSD = event.singleTicket.priceUSD; // 1 entrada
   const unitBs = event.singleTicket.priceBs;   // 3000 Bs
+  const pairUSD = event.singleTicket.pairPriceUSD; // promo 2 entradas
+  const pairBs = event.singleTicket.pairPriceBs;   // 5000 Bs
 
-  const totalUSD = unitUSD * quantity;
-  const totalBs = unitBs * quantity;
+  const { totalUSD, totalBs } = calcTotals(event, quantity);
 
   const pagoMovilAvailable = Boolean(
     event.pagoMovil.bank &&
@@ -128,7 +129,7 @@ export function TicketPurchaseForm({ event }: TicketPurchaseFormProps) {
                   1. Cantidad de Entradas:
                 </label>
                 <span className="text-xs text-[#8f92a8] font-mono">
-                  Precio unitario: ${unitUSD} USD o {unitBs.toLocaleString('es-VE')} Bs
+                  1 = {unitBs.toLocaleString('es-VE')} Bs (${unitUSD}) • 2 = {pairBs.toLocaleString('es-VE')} Bs (${pairUSD}) PROMO
                 </span>
               </div>
 
