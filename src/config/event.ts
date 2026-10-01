@@ -1,8 +1,19 @@
 // src/config/event.ts
 // CONFIGURACIÓN MAESTRA DEL EVENTO
-// Los valores de marca (nombre, subtítulo) se pueden sobreescribir con env vars:
-//   NEXT_PUBLIC_EVENT_NAME / NEXT_PUBLIC_EVENT_SUBTITLE
-// Si no se definen, se usan los valores por defecto de abajo.
+// La configuración real del evento se hace por VARIABLES DE ENTORNO (env vars).
+// Variables soportadas:
+//   NEXT_PUBLIC_EVENT_NAME / _SUBTITLE / _DATE / _TIME / _VENUE / _CITY / _DRESS_CODE
+//   NEXT_PUBLIC_PAGO_MOVIL_BANCO / _TELEFONO / _CEDULA / _TITULAR
+//   NEXT_PUBLIC_WHATSAPP / NEXT_PUBLIC_INSTAGRAM
+//   NEXT_PUBLIC_PRICE_SINGLE_BS / _PAIR_BS   (y los equivalentes _USD)
+//
+// ============================================================================
+// ⚠️⚠️  FALLBACKS PROVISIONALES — ELIMINAR  ⚠️⚠️
+// Los valores fijos de EVENT_DATA solo se usan cuando la env var NO está definida.
+// Es un parche temporal para que la app no se vea vacía sin envs. Cuando TODO el
+// evento se configure por env (nombre, fecha, sede, pago móvil y precios),
+// ESTOS FALLBACKS DEBEN BORRARSE y dejar solo lo que venga de process.env.
+// ============================================================================
 
 const envName = process.env.NEXT_PUBLIC_EVENT_NAME?.trim();
 const envSubtitle = process.env.NEXT_PUBLIC_EVENT_SUBTITLE?.trim();
@@ -19,8 +30,8 @@ const envCity = process.env.NEXT_PUBLIC_EVENT_CITY?.trim();
 const envDressCode = process.env.NEXT_PUBLIC_EVENT_DRESS_CODE?.trim();
 
 // Precios configurables. La promo trata CADA PAR de entradas al precio de pareja
-// (por defecto 2 entradas = 5000 Bs) y cada entrada suelta al precio individual
-// (por defecto 1 = 3000 Bs).
+// (2 entradas = 5000 Bs) y cada entrada suelta al precio individual (1 = 3000 Bs).
+// ⚠️ 3000/5000 son los FALLBACKS PROVISIONALES: configurar por env y quitarlos.
 const envSinglePriceBs = numEnv(process.env.NEXT_PUBLIC_PRICE_SINGLE_BS, 3000);
 const envSinglePriceUsd = numEnv(process.env.NEXT_PUBLIC_PRICE_SINGLE_USD, 3);
 const envPairPriceBs = numEnv(process.env.NEXT_PUBLIC_PRICE_PAIR_BS, 5000);
@@ -83,14 +94,16 @@ export interface EventConfig {
 }
 
 export const EVENT_DATA: EventConfig = {
-  id: "y2k-party-2000s",
-  title: envName || "2000s Party",
-  subtitle: envSubtitle || "La fiesta con lo mejor de los 2000s • Pop, Hip-Hop, Rock y Reggaetón",
-  date: envDate || "Viernes 11 de Septiembre, 2026",
-  time: envTime || "7:00 PM a 12:00 AM",
-  venue: envVenue || "Salón Parroquial de la Parroquia San Juan Evangelista",
-  city: envCity || "Campo Rico",
-  dressCode: envDressCode || "Outfit Años 2000s (Denim, glitter, retro chic)",
+  // ⚠️ FALLBACKS PROVISIONALES (ver aviso al inicio del archivo) — deben borrarse
+  //    cuando todo el evento se configure por variables de entorno.
+  id: "retro-night-party-80-90",
+  title: envName || "Retro night party 80/90",
+  subtitle: envSubtitle || "Trae tu mejor pinta 80 o 90",
+  date: envDate || "Viernes 2 de octubre 2026",
+  time: envTime || "7pm a 12 am",
+  venue: envVenue || "Salón parroquial",
+  city: envCity || "Vzla",
+  dressCode: envDressCode || "Outfit 80/90",
 
   // Configuración de taquilla: ENTRADA 3000 Bs / 3.000 Bs con promo 2x1
   hasMultipleTiers: false,
@@ -121,11 +134,12 @@ export const EVENT_DATA: EventConfig = {
     }
   ],
 
+  // ⚠️ FALLBACKS PROVISIONALES (ver aviso al inicio del archivo).
   pagoMovil: {
-    bank: envBank || "",
-    phone: envPhone || "",
-    idNumber: envCedula || "",
-    accountHolder: envHolder || ""
+    bank: envBank || "Vzla",
+    phone: envPhone || "04129896888",
+    idNumber: envCedula || "14.501.780",
+    accountHolder: envHolder || "Luis Alberto Silva Perdomo"
   },
 
   // Enlaces de contacto y redes
